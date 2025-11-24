@@ -59,6 +59,9 @@ try:
     with open('label_encoder.pkl', 'rb') as f:
         le = pickle.load(f)
     print("Tải 'label_encoder.pkl' thành công.")
+
+    print("CÁC KÝ TỰ MÔ HÌNH ĐÃ HỌC:", le.classes_)
+    print("TỔNG SỐ KÝ TỰ:", len(le.classes_))
 except FileNotFoundError:
     print("LỖI: Không tìm thấy file 'label_encoder.pkl'.")
     print("Bạn đã chạy lại file 'train_and_evaluate.py' để lưu mô hình chưa?")

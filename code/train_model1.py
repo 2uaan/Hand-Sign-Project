@@ -74,6 +74,7 @@ def load_and_process_data(data_dir):
     # Lấy danh sách các thư mục con (A, B, C...)
     try:
         labels_list = os.listdir(data_dir)
+        labels_list.sort()
     except FileNotFoundError:
         print(f"LỖI: Không tìm thấy thư mục '{data_dir}'.")
         print("Bạn đã tạo thư mục 'dataset' và thu thập ảnh chưa?")
@@ -84,6 +85,10 @@ def load_and_process_data(data_dir):
         return None, None, None
 
     for label in labels_list:
+        if label.startswith('.tmp.driveupload') or label.startswith('temp'):
+            continue
+
+
         label_path = os.path.join(data_dir, label)
         if not os.path.isdir(label_path):
             continue
