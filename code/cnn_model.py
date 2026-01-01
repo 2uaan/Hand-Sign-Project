@@ -105,35 +105,45 @@ class FullyConnected:
 
 class Softmax:
     def forward(self, input):
-        # Ổn định số học
         exp_vals = np.exp(input - np.max(input))
         return exp_vals / np.sum(exp_vals, axis=0)
 
     def backward(self, d_L_d_out):
-        # Không dùng vì ta tính gộp gradient ở hàm train
         return d_L_d_out
 
 
-# ==========================================
-# 2. CLASS TỔNG HỢP (THE WHOLE MODEL)
-# ==========================================
+
 
 class SignLanguageCNN:
-    def __init__(self, num_classes=10):
-        # Khởi tạo các lớp
-        # Ảnh 64x64x3
+    def __init__(self, num_classes=4, img_size=96):
+        """
+        img_size: Kích thước ảnh đầu vào (Ví dụ: 96 hoặc 64)
+        """
+        self.num_classes = num_classes
+        self.img_size = img_size
+
+        # 1. Khởi tạo các lớp
         self.conv = Conv3x3_RGB(num_filters=8, input_depth=3)
         self.relu = ReLU()
         self.pool = MaxPool2()
-
-        # Tính toán kích thước cho lớp Fully Connected
-        # 64 -> Conv(3x3) -> 62 -> Pool(2x2) -> 31
-        # Số lượng đặc trưng = 31 * 31 * 8 filters = 7688
-        self.fc = FullyConnected(input_len=31 * 31 * 8, nodes=num_classes)
         self.softmax = Softmax()
 
+        conv_output_size = self.img_size - 2
+
+        pool_output_size = conv_output_size // 2
+
+        self.fc_input_len = pool_output_size * pool_output_size * 8
+
+        print(
+            f"ℹ️ Cấu hình mạng: Input({img_size}x{img_size}) -> Conv -> Pool({pool_output_size}x{pool_output_size}x8) -> Flatten({self.fc_input_len})")
+
+        self.fc = FullyConnected(input_len=self.fc_input_len, nodes=num_classes)
+
     def forward(self, image):
-        # Luồng dữ liệu đi xuôi
+
+        if len(image.shape) == 4:
+            image = image[0]
+
         out = self.conv.forward(image)
         out = self.relu.forward(out)
         out = self.pool.forward(out)
@@ -145,15 +155,15 @@ class SignLanguageCNN:
         # 1. Forward
         out = self.forward(image)
 
-        # 2. Tính Loss & Acc
+        # 2. Tính Loss (Cross-Entropy)
         loss = -np.log(out[label] + 1e-9)
         acc = 1 if np.argmax(out) == label else 0
 
-        # 3. Tính Gradient Rút Gọn (CrossEntropy + Softmax)
+        # 3. Tính Gradient
         gradient = out.copy()
         gradient[label] -= 1
 
-        # 4. Backward (Đi ngược)
+        # 4. Backward
         gradient = self.fc.backward(gradient, lr)
         gradient = self.pool.backward(gradient)
         gradient = self.relu.backward(gradient)
@@ -161,9 +171,10 @@ class SignLanguageCNN:
 
         return loss, acc
 
-    def save_model(self, filename='model_weights.pkl'):
-        # Lưu trọng số ra file để dùng cho Camera App
+    def save_model(self, filename='sign_language_model.pkl'):
         model_data = {
+            'img_size': self.img_size,  # Lưu luôn kích thước ảnh để lúc load biết đường resize
+            'num_classes': self.num_classes,
             'conv_filters': self.conv.filters,
             'fc_weights': self.fc.weights,
             'fc_biases': self.fc.biases
@@ -171,6 +182,24 @@ class SignLanguageCNN:
         with open(filename, 'wb') as f:
             pickle.dump(model_data, f)
         print(f"💾 Đã lưu model vào '{filename}'")
+
+    def load_model(self, filename='sign_language_model.pkl'):
+        try:
+            with open(filename, 'rb') as f:
+                data = pickle.load(f)
+
+            # Kiểm tra xem file model có khớp cấu hình không
+            if data.get('img_size') and data['img_size'] != self.img_size:
+                print(f"⚠️ Cảnh báo: Model được train với size {data['img_size']}, nhưng bạn đang set {self.img_size}.")
+
+            self.conv.filters = data['conv_filters']
+            self.fc.weights = data['fc_weights']
+            self.fc.biases = data['fc_biases']
+            print(f"📂 Đã load trọng số từ '{filename}'")
+            return True
+        except Exception as e:
+            print(f"❌ Lỗi load model: {e}")
+            return False
 
     def load_model(self, filename='model_weights.pkl'):
         # Đọc trọng số vào
